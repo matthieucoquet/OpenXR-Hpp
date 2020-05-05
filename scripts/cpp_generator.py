@@ -460,23 +460,6 @@ class CppGenerator(AutomaticSourceOutputGenerator):
             rets=",".join(method.returns),
             name=method.qualified_name, successes=method.successes_arg)
 
-    def _is_tagged_type(self, typename):
-        if typename not in self.dict_structs:
-            return False
-        return any((x.name == "type" for x in self.dict_structs[typename].members))
-
-    def _get_tag(self, typename):
-        if typename not in self.dict_structs:
-            return None
-        tag_member = [x for x in self.dict_structs[typename].members
-                      if x.name == "type"]
-        if not tag_member:
-            return None
-        raw_tag = tag_member[0].values
-        if not raw_tag:
-            return None
-        return "StructureType::" + self.createEnumValue(raw_tag, "XrStructureType")
-
     def _enhanced_method_detect_twocall(self, method):
         # Find the three important parameters
         capacity_input_param_name = None
@@ -744,7 +727,7 @@ class CppGenerator(AutomaticSourceOutputGenerator):
 
         if defaulted:
             defaultValue = "{}"
-            if member.pointer_count > 0 or (member.type == 'char' and member.is_array):
+            if member.pointer_count > 0 or (member.type == 'char' and member.is_array and input):
                 defaultValue = "nullptr"
             elif member.type.startswith("uint") or member.type.startswith("int"):
                 defaultValue = "0"
@@ -756,6 +739,11 @@ class CppGenerator(AutomaticSourceOutputGenerator):
                     defaultValue = '0.0f'
             elif member.type == "XrBool32":
                 defaultValue = "XR_FALSE"
+            elif member.type == "XrStructureType":
+                if member.values:
+                    defaultValue = "StructureType::" + self.createEnumValue(member.values, "XrStructureType")
+                else:
+                    defaultValue = "StructureType::Unknown"
             result = result + " = " + defaultValue
         return result
 
@@ -840,7 +828,6 @@ class CppGenerator(AutomaticSourceOutputGenerator):
             discouraged_begin=_discouraged_begin,
             discouraged_end=_discouraged_end,
             generate_structure_type_from_name=self.conventions.generate_structure_type_from_name,
-            is_tagged_type=self._is_tagged_type,
             project_cppdecl=self._project_cppdecl,
             cpp_hidden_member=self._cpp_hidden_member,
             struct_member_count=self._struct_member_count,
@@ -850,7 +837,6 @@ class CppGenerator(AutomaticSourceOutputGenerator):
             struct_parents=self.struct_parents,
             struct_children=self.struct_children,
             struct_fields=self.struct_fields,
-            get_tag=self._get_tag,
             is_base_only=self._is_base_only
         )
         write(file_data, file=self.outFile)
